@@ -195,10 +195,11 @@ impl GithubClient {
         Ok(())
     }
 
-    pub async fn create_check_run(
+    pub async fn complete_check_run(
         &self,
         target: &ReviewTarget,
         check_name: &str,
+        check_run_id: Option<u64>,
         conclusion: &str,
         output: CheckOutput,
         started_at: &str,
@@ -207,7 +208,7 @@ impl GithubClient {
             return Ok(());
         };
         let now = Utc::now().to_rfc3339();
-        let payload = json!({
+        let mut payload = json!({
             "name": check_name,
             "head_sha": head_sha,
             "status": "completed",
@@ -216,12 +217,40 @@ impl GithubClient {
             "completed_at": now,
             "output": output,
         });
+        if check_run_id.is_some() {
+            payload
+                .as_object_mut()
+                .expect("payload object")
+                .remove("name");
+            payload
+                .as_object_mut()
+                .expect("payload object")
+                .remove("head_sha");
+            payload
+                .as_object_mut()
+                .expect("payload object")
+                .remove("started_at");
+        }
+        let (method, url) = if let Some(id) = check_run_id {
+            (
+                reqwest::Method::PATCH,
+                format!(
+                    "{}/repos/{}/{}/check-runs/{}",
+                    self.base_url, target.owner, target.repo, id
+                ),
+            )
+        } else {
+            (
+                reqwest::Method::POST,
+                format!(
+                    "{}/repos/{}/{}/check-runs",
+                    self.base_url, target.owner, target.repo
+                ),
+            )
+        };
         let res = self
             .http
-            .post(format!(
-                "{}/repos/{}/{}/check-runs",
-                self.base_url, target.owner, target.repo
-            ))
+            .request(method, url)
             .bearer_auth(&self.token)
             .header("accept", "application/vnd.github+json")
             .json(&payload)

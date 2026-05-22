@@ -55,6 +55,8 @@ struct ReviewArgs {
     #[arg(long)]
     check_name: Option<String>,
     #[arg(long)]
+    check_run_id: Option<u64>,
+    #[arg(long)]
     output_json: Option<PathBuf>,
 }
 
@@ -93,6 +95,7 @@ async fn run_review(args: ReviewArgs) -> Result<ExitCode> {
         no_inline: args.no_inline.then_some(true),
         diff_limit: args.diff_limit,
         check_name: args.check_name,
+        check_run_id: args.check_run_id,
         repo: args.repo,
         pr: args.pr,
         sha: args.sha,
@@ -122,9 +125,10 @@ async fn run_review(args: ReviewArgs) -> Result<ExitCode> {
             )?;
         }
         github
-            .create_check_run(
+            .complete_check_run(
                 &target,
                 &runtime.check_name,
+                runtime.check_run_id,
                 "neutral",
                 CheckOutput::empty(),
                 &started_at,
@@ -144,7 +148,14 @@ async fn run_review(args: ReviewArgs) -> Result<ExitCode> {
             text: None,
         };
         github
-            .create_check_run(&target, &runtime.check_name, "neutral", output, &started_at)
+            .complete_check_run(
+                &target,
+                &runtime.check_name,
+                runtime.check_run_id,
+                "neutral",
+                output,
+                &started_at,
+            )
             .await?;
         if let Some(path) = output_json.as_ref() {
             write_envelope(
@@ -205,9 +216,10 @@ async fn run_review(args: ReviewArgs) -> Result<ExitCode> {
 
     let conclusion = check_conclusion(&envelope);
     github
-        .create_check_run(
+        .complete_check_run(
             &target,
             &runtime.check_name,
+            runtime.check_run_id,
             conclusion,
             CheckOutput::from_envelope(&envelope),
             &started_at,

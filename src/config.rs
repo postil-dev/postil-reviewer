@@ -139,6 +139,7 @@ pub struct RuntimeFileConfig {
     pub no_inline: Option<bool>,
     pub diff_limit: Option<usize>,
     pub check_name: Option<String>,
+    pub check_run_id: Option<u64>,
     pub repo: Option<String>,
     pub pr: Option<u64>,
     pub sha: Option<String>,
@@ -170,6 +171,7 @@ pub struct RuntimeConfig {
     pub no_inline: bool,
     pub diff_limit: usize,
     pub check_name: String,
+    pub check_run_id: Option<u64>,
     pub repo: Option<String>,
     pub pr: Option<u64>,
     pub sha: Option<String>,
@@ -190,6 +192,7 @@ pub struct RuntimeOverrides {
     pub no_inline: Option<bool>,
     pub diff_limit: Option<usize>,
     pub check_name: Option<String>,
+    pub check_run_id: Option<u64>,
     pub repo: Option<String>,
     pub pr: Option<u64>,
     pub sha: Option<String>,
@@ -253,6 +256,7 @@ impl RuntimeConfig {
                 .or_else(|| env::var("POSTIL_CHECK_NAME").ok())
                 .or(file.check_name)
                 .unwrap_or_else(|| "postil/review".to_string()),
+            check_run_id: flags.check_run_id.or(file.check_run_id),
             repo: flags.repo.or(file.repo),
             pr: flags.pr.or(file.pr),
             sha: flags.sha.or(file.sha),

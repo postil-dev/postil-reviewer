@@ -69,6 +69,9 @@ postil review --output-json .cache/postil-review.json
 
 The JSON includes `summary`, `findings`, `usage`, and `modelUsed`.
 
+Hosted workers that already created an in-progress check-run should pass
+`--check-run-id`; CI/self-hosted runs omit it and the CLI creates the check-run.
+
 ## Testing
 
 ```bash
