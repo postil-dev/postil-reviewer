@@ -326,10 +326,10 @@ impl CheckOutput {
         } else if warnings > 0 {
             format!("{warnings} warning{}", if warnings == 1 { "" } else { "s" })
         } else {
-            "No issues".to_string()
+            "No merge-relevant findings".to_string()
         };
         let text = if envelope.findings.is_empty() {
-            Some("No issues found.".to_string())
+            None
         } else {
             Some(render_findings(&envelope.findings))
         };
@@ -337,7 +337,7 @@ impl CheckOutput {
             title,
             summary: if envelope.summary.trim().is_empty() {
                 if envelope.findings.is_empty() {
-                    "No issues found.".to_string()
+                    "No merge-relevant findings.".to_string()
                 } else {
                     "See inline review comments.".to_string()
                 }

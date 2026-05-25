@@ -1,6 +1,7 @@
 use postil_reviewer::{
+    config::RepoReviewConfig,
     openrouter::OpenRouterClient,
-    review::{TokenUsage, parse_envelope},
+    review::{TokenUsage, parse_envelope, system_prompt},
 };
 
 #[tokio::test]
@@ -12,6 +13,7 @@ async fn live_openrouter_smoke() {
     let result = client
         .complete(
             &model,
+            &system_prompt(&RepoReviewConfig::default()),
             "Diff:\n\ndiff --git a/src/lib.rs b/src/lib.rs\n+pub fn add(a: i32, b: i32) -> i32 { a + b }\n",
         )
         .await
@@ -22,5 +24,10 @@ async fn live_openrouter_smoke() {
         result.model_used.clone(),
     );
     assert_eq!(result.model_used, model);
-    assert!(!envelope.summary.trim().is_empty());
+    assert!(
+        envelope
+            .findings
+            .iter()
+            .all(|finding| finding.path != ".postil/model-output")
+    );
 }

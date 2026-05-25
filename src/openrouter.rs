@@ -4,7 +4,7 @@ use anyhow::{Context, Result, anyhow};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
-use crate::review::{SYSTEM_PROMPT, TokenUsage};
+use crate::review::TokenUsage;
 
 #[derive(Debug, Clone)]
 pub struct OpenRouterClient {
@@ -33,7 +33,12 @@ impl OpenRouterClient {
         })
     }
 
-    pub async fn complete(&self, model: &str, user_content: &str) -> Result<OpenRouterResult> {
+    pub async fn complete(
+        &self,
+        model: &str,
+        system_prompt: &str,
+        user_content: &str,
+    ) -> Result<OpenRouterResult> {
         let url = format!("{}/chat/completions", self.base_url);
         let res = self
             .http
@@ -42,7 +47,7 @@ impl OpenRouterClient {
             .header("content-type", "application/json")
             .header("http-referer", "https://postil.dev")
             .header("x-title", "Postil")
-            .json(&CompletionRequest::new(model, user_content))
+            .json(&CompletionRequest::new(model, system_prompt, user_content))
             .send()
             .await
             .context("send OpenRouter request")?;
@@ -94,13 +99,13 @@ struct CompletionRequest<'a> {
 }
 
 impl<'a> CompletionRequest<'a> {
-    fn new(model: &'a str, user_content: &'a str) -> Self {
+    fn new(model: &'a str, system_prompt: &'a str, user_content: &'a str) -> Self {
         Self {
             model,
             messages: vec![
                 Message {
                     role: "system",
-                    content: SYSTEM_PROMPT,
+                    content: system_prompt,
                 },
                 Message {
                     role: "user",
