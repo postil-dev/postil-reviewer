@@ -24,6 +24,8 @@ Rules:
 - Use warn for issues that should delay merge until fixed or accepted by a human.
 - Use info only for merge-relevant human escalation, durable guardrail suggestions, or material uncertainty.
 - If the diff has no merge-relevant findings, return an empty summary string and an empty findings array.
+- Return at most 25 findings.
+- Keep each finding body under 1200 characters.
 
 Reply with ONLY a single JSON object, no prose, no markdown fence:
 {
@@ -105,6 +107,13 @@ pub fn parse_envelope(text: &str, usage: TokenUsage, model_used: String) -> Revi
         usage,
         model_used,
     )
+}
+
+pub fn is_model_output_error(envelope: &ReviewEnvelope) -> bool {
+    envelope
+        .findings
+        .iter()
+        .any(|finding| finding.path == ".postil/model-output")
 }
 
 fn parse_value(value: Value, usage: TokenUsage, model_used: String) -> ReviewEnvelope {

@@ -419,6 +419,63 @@ failOn: error
     fs::remove_dir_all(dir).unwrap();
 }
 
+#[tokio::test]
+async fn retries_invalid_model_output_once() {
+    let openrouter = MockServer::start().await;
+    let dir = cache_test_dir("invalid-model-output-retry");
+    let config = dir.join("postil.yaml");
+    let diff = dir.join("change.diff");
+    fs::write(
+        &config,
+        format!(
+            r#"
+openrouterApiKey: test-openrouter
+openrouterApiUrl: {}
+reviewModel: xiaomi/mimo-v2.5-pro
+failOn: error
+"#,
+            openrouter.uri()
+        ),
+    )
+    .unwrap();
+    fs::write(&diff, "diff --git a/src/lib.rs b/src/lib.rs\n+let x = 1;").unwrap();
+
+    Mock::given(method("POST"))
+        .and(path("/chat/completions"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "choices": [{"message": {"content": "{\"summary\":\"oops\",\"findings\":["}, "finish_reason": "length"}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 16000, "total_tokens": 16010}
+        })))
+        .up_to_n_times(1)
+        .mount(&openrouter)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/chat/completions"))
+        .and(body_string_contains(
+            "previous response was not valid Postil JSON",
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "choices": [{"message": {"content": "{\"summary\":\"\",\"findings\":[]}"} }]
+        })))
+        .mount(&openrouter)
+        .await;
+
+    Command::cargo_bin("postil")
+        .unwrap()
+        .args([
+            "review",
+            "--config",
+            config.to_str().unwrap(),
+            "--diff-file",
+            diff.to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("success (0 findings"));
+
+    fs::remove_dir_all(dir).unwrap();
+}
+
 fn cache_test_dir(name: &str) -> PathBuf {
     let dir = std::env::current_dir()
         .unwrap()

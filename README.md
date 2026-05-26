@@ -26,7 +26,7 @@ By default, the command also reads GitHub Actions context:
 - `OPENROUTER_API_KEY`
 
 Review models are configured with `REVIEW_MODEL` or `REVIEW_MODEL_CASCADE`.
-The default model is `moonshotai/kimi-k2.6`.
+The default model is `deepseek/deepseek-v4-pro`.
 
 ## Configuration
 
@@ -103,5 +103,5 @@ cargo test --quiet
 Live OpenRouter smoke test:
 
 ```bash
-infisical run --env=prod -- env REVIEW_MODEL=xiaomi/mimo-v2.5-pro cargo test --quiet live_openrouter_smoke -- --ignored
+infisical run --env=prod -- env REVIEW_MODEL=deepseek/deepseek-v4-pro cargo test --quiet live_openrouter_smoke -- --ignored
 ```

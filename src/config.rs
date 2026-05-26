@@ -238,7 +238,7 @@ impl RuntimeConfig {
                 .review_model
                 .or_else(|| env::var("REVIEW_MODEL").ok())
                 .or(file.review_model)
-                .unwrap_or_else(|| "moonshotai/kimi-k2.6".to_string()),
+                .unwrap_or_else(|| "deepseek/deepseek-v4-pro".to_string()),
             review_model_cascade: flags
                 .review_model_cascade
                 .or_else(|| env::var("REVIEW_MODEL_CASCADE").ok())

@@ -13,7 +13,8 @@ use postil_reviewer::config::{
 use postil_reviewer::github::{CheckOutput, GithubClient, check_conclusion};
 use postil_reviewer::openrouter::{self, OpenRouterClient};
 use postil_reviewer::review::{
-    ReviewEnvelope, TokenUsage, apply_config, parse_envelope, review_body, system_prompt,
+    ReviewEnvelope, TokenUsage, apply_config, is_model_output_error, parse_envelope, review_body,
+    system_prompt,
 };
 use postil_reviewer::text::limit_text;
 
@@ -220,14 +221,36 @@ async fn run_review(args: ReviewArgs) -> Result<ExitCode> {
     let prompt = system_prompt(&repo_config);
     let user_content = review_user_content(&source_label, &diff);
     let model_result = run_cascade(&openrouter, &runtime.models(), &prompt, &user_content).await?;
-    let envelope = apply_config(
+    let mut envelope = apply_config(
         parse_envelope(
             &model_result.content,
-            model_result.usage,
-            model_result.model_used,
+            model_result.usage.clone(),
+            model_result.model_used.clone(),
         ),
         &repo_config,
     )?;
+    if is_model_output_error(&envelope) {
+        eprintln!(
+            "[postil] model output was not valid JSON{}; retrying once with a compact JSON repair prompt",
+            model_result
+                .finish_reason
+                .as_deref()
+                .map(|reason| format!(" (finish_reason: {reason})"))
+                .unwrap_or_default()
+        );
+        let retry_content = json_repair_user_content(&source_label, &diff, &model_result.content);
+        let retry = openrouter
+            .complete_compact_json(&model_result.model_used, &prompt, &retry_content)
+            .await
+            .context("retry review model after invalid JSON output")?;
+        let retry_envelope = apply_config(
+            parse_envelope(&retry.content, retry.usage, retry.model_used),
+            &repo_config,
+        )?;
+        if !is_model_output_error(&retry_envelope) {
+            envelope = retry_envelope;
+        }
+    }
     if let Some(path) = output_json {
         write_envelope(&path, &envelope)?;
     }
@@ -401,6 +424,13 @@ fn load_local_repo_config() -> Result<postil_reviewer::config::RepoReviewConfig>
 
 fn review_user_content(source_label: &str, diff: &str) -> String {
     format!("Review source: {source_label}\n\nUnified diff:\n\n{diff}")
+}
+
+fn json_repair_user_content(source_label: &str, diff: &str, previous_output: &str) -> String {
+    let previous = limit_text(previous_output.to_string(), 4_000);
+    format!(
+        "The previous response was not valid Postil JSON or was truncated. Return ONLY one compact valid JSON object matching the schema from the system prompt. Do not include markdown, reasoning, or prose.\n\nReview source: {source_label}\n\nPrevious invalid output excerpt:\n{previous}\n\nUnified diff:\n\n{diff}"
+    )
 }
 
 fn render_local_findings(envelope: &ReviewEnvelope) -> String {

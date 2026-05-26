@@ -18,12 +18,13 @@ pub struct OpenRouterResult {
     pub content: String,
     pub usage: TokenUsage,
     pub model_used: String,
+    pub finish_reason: Option<String>,
 }
 
 impl OpenRouterClient {
     pub fn new(base_url: String, api_key: String) -> Result<Self> {
         let http = Client::builder()
-            .timeout(Duration::from_secs(120))
+            .timeout(Duration::from_secs(420))
             .build()
             .context("build OpenRouter HTTP client")?;
         Ok(Self {
@@ -39,6 +40,31 @@ impl OpenRouterClient {
         system_prompt: &str,
         user_content: &str,
     ) -> Result<OpenRouterResult> {
+        self.complete_with_request(
+            CompletionRequest::new(model, system_prompt, user_content),
+            model,
+        )
+        .await
+    }
+
+    pub async fn complete_compact_json(
+        &self,
+        model: &str,
+        system_prompt: &str,
+        user_content: &str,
+    ) -> Result<OpenRouterResult> {
+        self.complete_with_request(
+            CompletionRequest::compact_json(model, system_prompt, user_content),
+            model,
+        )
+        .await
+    }
+
+    async fn complete_with_request(
+        &self,
+        request: CompletionRequest<'_>,
+        model: &str,
+    ) -> Result<OpenRouterResult> {
         let url = format!("{}/chat/completions", self.base_url);
         let res = self
             .http
@@ -47,7 +73,7 @@ impl OpenRouterClient {
             .header("content-type", "application/json")
             .header("http-referer", "https://postil.dev")
             .header("x-title", "Postil")
-            .json(&CompletionRequest::new(model, system_prompt, user_content))
+            .json(&request)
             .send()
             .await
             .context("send OpenRouter request")?;
@@ -85,6 +111,7 @@ impl OpenRouterClient {
                     .unwrap_or(0),
             },
             model_used: model.to_string(),
+            finish_reason: data.choices.first().and_then(|c| c.finish_reason.clone()),
         })
     }
 }
@@ -95,11 +122,27 @@ struct CompletionRequest<'a> {
     messages: Vec<Message<'a>>,
     temperature: f32,
     max_tokens: u32,
+    max_completion_tokens: u32,
     response_format: ResponseFormat,
+    reasoning: Reasoning,
 }
 
 impl<'a> CompletionRequest<'a> {
     fn new(model: &'a str, system_prompt: &'a str, user_content: &'a str) -> Self {
+        Self::with_reasoning(model, system_prompt, user_content, 8_000, "low")
+    }
+
+    fn compact_json(model: &'a str, system_prompt: &'a str, user_content: &'a str) -> Self {
+        Self::with_reasoning(model, system_prompt, user_content, 8_000, "low")
+    }
+
+    fn with_reasoning(
+        model: &'a str,
+        system_prompt: &'a str,
+        user_content: &'a str,
+        max_completion_tokens: u32,
+        reasoning_effort: &'static str,
+    ) -> Self {
         Self {
             model,
             messages: vec![
@@ -113,9 +156,14 @@ impl<'a> CompletionRequest<'a> {
                 },
             ],
             temperature: 0.2,
-            max_tokens: 2500,
+            max_tokens: max_completion_tokens,
+            max_completion_tokens,
             response_format: ResponseFormat {
                 kind: "json_object",
+            },
+            reasoning: Reasoning {
+                effort: reasoning_effort,
+                exclude: true,
             },
         }
     }
@@ -133,6 +181,12 @@ struct ResponseFormat {
     kind: &'static str,
 }
 
+#[derive(Debug, Serialize)]
+struct Reasoning {
+    effort: &'static str,
+    exclude: bool,
+}
+
 #[derive(Debug, Deserialize)]
 struct CompletionResponse {
     choices: Vec<Choice>,
@@ -142,6 +196,7 @@ struct CompletionResponse {
 #[derive(Debug, Deserialize)]
 struct Choice {
     message: MessageResponse,
+    finish_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
