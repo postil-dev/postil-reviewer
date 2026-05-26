@@ -6,12 +6,23 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --check
       - run: cargo test --quiet
+      - run: cargo build --quiet --bin postil
+      - name: Dogfood Postil review
+        if: github.event_name == 'pull_request'
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: target/debug/postil review --base "origin/${{ github.base_ref }}" --no-inline
