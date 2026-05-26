@@ -7,6 +7,7 @@ use serde_json::json;
 use crate::{
     config::{RepoReviewConfig, ReviewTarget, translate_coderabbit, translate_kodo},
     review::{Finding, ReviewEnvelope},
+    text::limit_text,
 };
 
 #[derive(Debug, Clone)]
@@ -46,11 +47,7 @@ impl GithubClient {
             ));
         }
         let diff = res.text().await.context("read diff body")?;
-        Ok(if diff.len() > limit {
-            format!("{}\n\n[diff truncated]", &diff[..limit])
-        } else {
-            diff
-        })
+        Ok(limit_text(diff, limit))
     }
 
     pub async fn load_repo_config(&self, target: &ReviewTarget) -> Result<RepoReviewConfig> {

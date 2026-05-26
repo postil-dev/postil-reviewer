@@ -325,6 +325,54 @@ review:
 }
 
 #[tokio::test]
+async fn truncates_local_diff_on_utf8_boundary() {
+    let openrouter = MockServer::start().await;
+    let dir = cache_test_dir("utf8-diff-limit");
+    let config = dir.join("postil.yaml");
+    let diff = dir.join("change.diff");
+    fs::write(
+        &config,
+        format!(
+            r#"
+openrouterApiKey: test-openrouter
+openrouterApiUrl: {}
+reviewModel: xiaomi/mimo-v2.5-pro
+failOn: error
+"#,
+            openrouter.uri()
+        ),
+    )
+    .unwrap();
+    fs::write(&diff, "diff --git a/src/lib.rs b/src/lib.rs\n+é").unwrap();
+
+    Mock::given(method("POST"))
+        .and(path("/chat/completions"))
+        .and(body_string_contains("[diff truncated]"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "choices": [{"message": {"content": "{\"summary\":\"\",\"findings\":[]}"} }]
+        })))
+        .mount(&openrouter)
+        .await;
+
+    Command::cargo_bin("postil")
+        .unwrap()
+        .args([
+            "review",
+            "--config",
+            config.to_str().unwrap(),
+            "--diff-file",
+            diff.to_str().unwrap(),
+            "--diff-limit",
+            "39",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("local diff"));
+
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[tokio::test]
 async fn invalid_model_output_fails_local_review() {
     let openrouter = MockServer::start().await;
     let dir = cache_test_dir("invalid-model-output");

@@ -15,6 +15,7 @@ use postil_reviewer::openrouter::{self, OpenRouterClient};
 use postil_reviewer::review::{
     ReviewEnvelope, TokenUsage, apply_config, parse_envelope, review_body, system_prompt,
 };
+use postil_reviewer::text::limit_text;
 
 #[derive(Debug, Parser)]
 #[command(name = "postil", about = "Postil low-noise review gate")]
@@ -384,14 +385,6 @@ fn git_diff(args: &[&str]) -> Result<String> {
         );
     }
     String::from_utf8(output.stdout).context("read git diff output")
-}
-
-fn limit_text(text: String, limit: usize) -> String {
-    if text.len() > limit {
-        format!("{}\n\n[diff truncated]", &text[..limit])
-    } else {
-        text
-    }
 }
 
 fn load_local_repo_config() -> Result<postil_reviewer::config::RepoReviewConfig> {
