@@ -17,9 +17,10 @@ Product doctrine:
 Rules:
 - Focus on correctness, security, reliability, intent mismatch, and context-dependent merge risk.
 - Do not flag style, formatting, imports, naming, summaries, praise, or preferences unless they create merge-relevant risk.
+- Do not include self-dismissing findings. If the body would say there is no concrete risk, that behavior is acceptable, or the code is safe, omit the finding.
 - Every finding cites a specific path and line number that exists in the diff.
 - Severity is one of: info, warn, error.
-- Use error for issues that should block merge until fixed.
+- Use error only for concrete issues that should block merge until fixed. If uncertainty remains, use warn or info.
 - Use warn for issues that should delay merge until fixed or accepted by a human.
 - Use info only for merge-relevant human escalation, durable guardrail suggestions, or material uncertainty.
 - If the diff has no merge-relevant findings, return an empty summary string and an empty findings array.
@@ -328,6 +329,7 @@ mod tests {
         assert!(prompt.contains("Comment only when"));
         assert!(prompt.contains("durable guardrail"));
         assert!(prompt.contains("accountable humans"));
+        assert!(prompt.contains("self-dismissing findings"));
         assert!(prompt.contains("empty summary string"));
     }
 

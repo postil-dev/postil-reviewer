@@ -22,7 +22,7 @@ jobs:
       - run: cargo test --quiet
       - run: cargo build --quiet --bin postil
       - name: Dogfood Postil review
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: target/debug/postil review --base "origin/${{ github.base_ref }}" --no-inline
