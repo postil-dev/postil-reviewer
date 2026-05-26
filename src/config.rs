@@ -51,7 +51,7 @@ impl Default for ReviewConfig {
     fn default() -> Self {
         Self {
             enabled: true,
-            on_clean: OnClean::Approve,
+            on_clean: OnClean::Skip,
             auto_merge: false,
             required_checks: Vec::new(),
             auto_merge_timeout_ms: 15_000,
@@ -159,7 +159,7 @@ impl RuntimeFileConfig {
 
 #[derive(Debug, Clone)]
 pub struct RuntimeConfig {
-    pub github_token: String,
+    pub github_token: Option<String>,
     pub github_repository: Option<String>,
     pub github_event_path: Option<String>,
     pub github_api_url: String,
@@ -201,12 +201,11 @@ pub struct RuntimeOverrides {
 impl RuntimeConfig {
     pub fn load(file: Option<RuntimeFileConfig>, flags: RuntimeOverrides) -> Result<Self> {
         let file = file.unwrap_or_default();
-        let github_token = pick_required(
+        let github_token = pick_optional(
             flags.github_token,
             env::var("GITHUB_TOKEN").ok(),
             file.github_token,
-            "GITHUB_TOKEN",
-        )?;
+        );
         let openrouter_api_key = pick_required(
             flags.openrouter_api_key,
             env::var("OPENROUTER_API_KEY").ok(),
@@ -239,7 +238,7 @@ impl RuntimeConfig {
                 .review_model
                 .or_else(|| env::var("REVIEW_MODEL").ok())
                 .or(file.review_model)
-                .unwrap_or_else(|| "moonshotai/kimi-k2.6".to_string()),
+                .unwrap_or_else(|| "deepseek/deepseek-v4-pro".to_string()),
             review_model_cascade: flags
                 .review_model_cascade
                 .or_else(|| env::var("REVIEW_MODEL_CASCADE").ok())
@@ -294,6 +293,14 @@ fn pick_required(
         .or(file)
         .filter(|v| !v.trim().is_empty())
         .ok_or_else(|| anyhow!("{name} is not set"))
+}
+
+fn pick_optional(
+    flag: Option<String>,
+    env: Option<String>,
+    file: Option<String>,
+) -> Option<String> {
+    flag.or(env).or(file).filter(|v| !v.trim().is_empty())
 }
 
 fn severity_env(name: &str) -> Option<Severity> {
@@ -408,4 +415,27 @@ pub fn translate_kodo(text: &str) -> Result<RepoReviewConfig> {
         severity_threshold: parsed.severity.unwrap_or(Severity::Info),
         ..RepoReviewConfig::default()
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn clean_reviews_skip_by_default() {
+        assert_eq!(ReviewConfig::default().on_clean, OnClean::Skip);
+    }
+
+    #[test]
+    fn local_runtime_does_not_require_github_token() {
+        let cfg = RuntimeConfig::load(
+            Some(RuntimeFileConfig {
+                openrouter_api_key: Some("test-openrouter".to_string()),
+                ..RuntimeFileConfig::default()
+            }),
+            RuntimeOverrides::default(),
+        )
+        .unwrap();
+        assert!(cfg.diff_limit > 0);
+    }
 }

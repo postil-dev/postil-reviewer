@@ -7,6 +7,7 @@ use serde_json::json;
 use crate::{
     config::{RepoReviewConfig, ReviewTarget, translate_coderabbit, translate_kodo},
     review::{Finding, ReviewEnvelope},
+    text::limit_text,
 };
 
 #[derive(Debug, Clone)]
@@ -46,11 +47,7 @@ impl GithubClient {
             ));
         }
         let diff = res.text().await.context("read diff body")?;
-        Ok(if diff.len() > limit {
-            format!("{}\n\n[diff truncated]", &diff[..limit])
-        } else {
-            diff
-        })
+        Ok(limit_text(diff, limit))
     }
 
     pub async fn load_repo_config(&self, target: &ReviewTarget) -> Result<RepoReviewConfig> {
@@ -326,10 +323,10 @@ impl CheckOutput {
         } else if warnings > 0 {
             format!("{warnings} warning{}", if warnings == 1 { "" } else { "s" })
         } else {
-            "No issues".to_string()
+            "No merge-relevant findings".to_string()
         };
         let text = if envelope.findings.is_empty() {
-            Some("No issues found.".to_string())
+            None
         } else {
             Some(render_findings(&envelope.findings))
         };
@@ -337,7 +334,7 @@ impl CheckOutput {
             title,
             summary: if envelope.summary.trim().is_empty() {
                 if envelope.findings.is_empty() {
-                    "No issues found.".to_string()
+                    "No merge-relevant findings.".to_string()
                 } else {
                     "See inline review comments.".to_string()
                 }
