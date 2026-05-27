@@ -6,6 +6,34 @@ not contain review logic.
 
 ## Usage
 
+GitHub Actions:
+
+```yaml
+name: Postil review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: postil-dev/postil-reviewer@main
+        with:
+          api-key: ${{ secrets.OPENROUTER_API_KEY }}
+```
+
+The Action installs the `postil` binary from this repository revision, then runs
+`postil review` against the pull request.
+
+Local CLI:
+
 ```bash
 postil review --repo owner/repo --pr 123 --sha HEAD_SHA
 ```
