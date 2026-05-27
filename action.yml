@@ -32,6 +32,15 @@ inputs:
 runs:
   using: 'composite'
   steps:
+    - name: Install Rust toolchain
+      shell: bash
+      run: |
+        if command -v cargo >/dev/null 2>&1; then
+          exit 0
+        fi
+        curl --proto '=https' --tlsv1.2 --retry 10 --retry-connrefused --location --silent --show-error --fail https://sh.rustup.rs |
+          sh -s -- --profile minimal --default-toolchain stable -y
+        echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
     - name: Install Postil reviewer
       shell: bash
       run: cargo install --path "$GITHUB_ACTION_PATH" --locked --force
